@@ -14,7 +14,7 @@ import sys
 import os
 
 
-def convert_time_to_epoch(time_str: str):
+def convert_time_to_epoch(time_str: str) -> int | None:
     """
     Converts a given time string into its corresponding Unix epoch time.
 
@@ -23,10 +23,12 @@ def convert_time_to_epoch(time_str: str):
     be parsed due to invalid formatting, it returns None and prints an error
     message.
 
-    :param time_str: The datetime string in the format '%d-%b-%Y %H:%M:%S'
-         (e.g., '25-Dec-1995 15:30:45').
-    :return: The corresponding Unix epoch time as an integer, or None if
-         parsing fails.
+    Parameters:
+        time_str: The datetime string in the format '%d-%b-%Y %H:%M:%S'
+             (e.g., '25-Dec-1995 15:30:45').
+
+    Returns:
+        The corresponding Unix epoch time as an integer, or None if parsing fails.
     """
     try:
         # Parse the datetime string
@@ -39,7 +41,17 @@ def convert_time_to_epoch(time_str: str):
 
 
 def create_database_table(db_path: str):
-    """Create SQLite database and table with proper schema"""
+    """
+    Creates a new SQLite database table for storing location data if it does not already
+    exist. The table includes columns for timestamp, latitude, longitude, and heading.
+    The timestamp serves as the primary key.
+
+    Parameters:
+        db_path: The file path to the SQLite database.
+
+    Raises:
+        sqlite3.Error: If there is any issue interacting with the SQLite database.
+    """
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
 
@@ -87,9 +99,9 @@ def validate_csv_data(data: list[dict]) -> bool:
         print("Error: No data found in CSV file.")
         return False
 
-    required_columns = ['Time', 'gps_hdt', 'PosLat', 'PosLon']
-    available_columns = list(data[0].keys())
-    missing_columns = [col for col in required_columns if col not in available_columns]
+    required_columns = {'Time', 'gps_hdt', 'PosLat', 'PosLon'}
+    available_columns = set(data[0].keys())
+    missing_columns = required_columns - available_columns
 
     if missing_columns:
         print(f"Error: Missing required columns: {missing_columns}")
@@ -99,7 +111,7 @@ def validate_csv_data(data: list[dict]) -> bool:
     return True
 
 
-def process_csv_data(data):
+def process_csv_data(data : list[dict[str, str]]):
     """Process CSV data and convert time to epoch"""
     processed_data = []
     conversion_errors = 0
@@ -141,10 +153,10 @@ def process_csv_data(data):
             print(f"Warning: Error converting numeric values in row {i + 1}: {e}")
             conversion_errors += 1
 
-    if conversion_errors > 0:
+    if conversion_errors:
         print(f"Warning: {conversion_errors} rows had conversion errors and were skipped.")
 
-    if duplicates_found > 0:
+    if duplicates_found:
         print(f"Warning: {duplicates_found} duplicate timestamps found and were skipped.")
 
     print(f"Successfully processed {len(processed_data)} rows.")
@@ -160,13 +172,17 @@ def insert_data_to_database(processed_data: list[dict], db_path: str) -> bool:
     timestamp, latitude, longitude, and heading. If the operation succeeds, the function commits
     the changes and outputs the number of rows imported.
 
-    :param processed_data: A list of dictionaries, with each dictionary
-        representing a row of data to insert. Keys in the dictionary must
-        include 'timestamp', 'latitude', 'longitude', and 'heading'.
-    :param db_path: The file path to the SQLite database. The database file must
-        have a `location_data` table present with the required schema.
-    :return: A boolean value indicating success or failure of the operation. Returns True
-        on success or False if any exception is encountered during execution.
+    Parameters:
+        processed_data: A list of dictionaries, with each dictionary
+            representing a row of data to insert. Keys in the dictionary must
+            include 'timestamp', 'latitude', 'longitude', and 'heading'.
+        db_path: The file path to the SQLite database. The database file must
+            have a `location_data` table present with the required schema.
+
+    Returns:
+        A boolean value indicating success or failure of the operation. Returns
+        True on success or False if any exception is encountered during
+        execution.
     """
     try:
         with sqlite3.connect(db_path) as conn:
@@ -198,16 +214,17 @@ def insert_data_to_database(processed_data: list[dict], db_path: str) -> bool:
 
 def import_csv_to_sqlite(csv_file_path: str, db_path: str) -> bool:
     """
-    Imports data from a CSV file into an SQLite database by performing several steps: reading the CSV file,
-    validating its contents, processing the data, and inserting valid data into the database. Each step returns
-    an intermediate result to ensure proper handling of errors and data inconsistencies.
+    Imports data from a CSV file into an SQLite database by performing several
+    steps: reading the CSV file, validating its contents, processing the data,
+    and inserting valid data into the database. Each step returns an intermediate
+    result to ensure proper handling of errors and data inconsistencies.
 
-    :param csv_file_path: The file path of the CSV file to be imported.
-    :type csv_file_path: str
-    :param db_path: The location of the SQLite database to which the data will be imported.
-    :type db_path: str
-    :return: A boolean indicating whether the CSV data was successfully imported into the database.
-    :rtype: bool
+    Parameters:
+        csv_file_path: The file path of the CSV file to be imported.
+        db_path: The location of the SQLite database to which the data will be imported.
+
+    Returns:
+        A boolean indicating whether the CSV data was successfully imported into the database.
     """
     # Read CSV file
     data = read_csv_file(csv_file_path)
@@ -228,18 +245,18 @@ def import_csv_to_sqlite(csv_file_path: str, db_path: str) -> bool:
     return insert_data_to_database(processed_data, db_path)
 
 
-def verify_database_data(db_path: str, limit: int = 5):
+def verify_database_data(db_path: str, limit: int = 5) -> None:
     """
     Verify the structure and contents of the "location_data" table within the specified
     SQLite database. This function ensures that the table exists, prints its schema,
     counts the number of records, and optionally displays a sample of the data.
 
-    :param db_path: Path to the SQLite database file.
-    :type db_path: str
-    :param limit: The maximum number of records to display as a sample; default is 5.
-    :type limit: int
-    :return: None
-    :rtype: None
+    Parameters:
+        db_path: Path to the SQLite database file.
+        limit: The maximum number of records to display as a sample; default is 5.
+
+    Returns:
+        None
     """
     try:
         conn = sqlite3.connect(db_path)
