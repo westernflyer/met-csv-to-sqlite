@@ -59,7 +59,7 @@ def create_database_table(db_path: str):
         cursor.execute('''
                        CREATE TABLE IF NOT EXISTS location_data
                        (
-                           timestamp INTEGER PRIMARY KEY NOT NULL,
+                           timestamp INTEGER UNIQUE PRIMARY KEY NOT NULL,
                            latitude REAL,
                            longitude REAL,
                            heading REAL
@@ -167,9 +167,9 @@ def insert_data_to_database(processed_data: list[dict], db_path: str) -> bool:
     """
 
     Inserts pre-processed location data into a database table. This function connects to the
-    specified SQLite database file and clears the existing `location_data` table before
-    inserting the new rows from the provided data. Each row is expected to include the
-    timestamp, latitude, longitude, and heading. If the operation succeeds, the function commits
+    specified SQLite database file, then inserts new rows from the provided
+    data. Each row is expected to include the timestamp, latitude, longitude,
+    and heading. If the operation succeeds, the function commits
     the changes and outputs the number of rows imported.
 
     Parameters:
@@ -184,24 +184,32 @@ def insert_data_to_database(processed_data: list[dict], db_path: str) -> bool:
         True on success or False if any exception is encountered during
         execution.
     """
+    insertions = duplicates = 0
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
 
-            # Clear existing data
-            cursor.execute("DELETE FROM location_data")
-
             # Insert new data
             for row in processed_data:
-                cursor.execute('''
-                               INSERT INTO location_data (timestamp, latitude, longitude, heading)
-                               VALUES (?, ?, ?, ?)
-                               ''', (row['timestamp'], row['latitude'], row['longitude'],
-                                     row['heading']))
+                try:
+                    cursor.execute('''
+                                   INSERT INTO location_data (timestamp, latitude, longitude, heading)
+                                   VALUES (?, ?, ?, ?) 
+                                   ''', (row['timestamp'], row['latitude'], row['longitude'],
+                                         row['heading']))
+                    insertions += 1
+                # Duplicate keys are allowed and are ignored
+                except sqlite3.IntegrityError as e:
+                    if "UNIQUE constraint failed" in str(e):
+                        duplicates += 1
+                    else:
+                        raise
+
 
             conn.commit()
 
-        print(f"Successfully imported {len(processed_data)} rows into the database.")
+        print(F"Duplicates skipped: {duplicates}")
+        print(f"Successfully imported {insertions} rows into the database.")
         return True
 
     except sqlite3.IntegrityError as e:
@@ -307,7 +315,8 @@ def verify_database_data(db_path: str, limit: int = 5) -> None:
 def main():
     """Main function"""
     # Configuration
-    csv_file_path = "/Users/tkeffer/WesternFlyerData/metdata/track/WFF_Pos_1min.csv"
+    csv_file_path = "/Users/tkeffer/WesternFlyerData/metdata/track/WFF_Pos_1min20250626.csv"
+    # csv_file_path = "/Users/tkeffer/WesternFlyerData/metdata/track/WFF_Pos_1min.csv"
     db_path = "/Users/tkeffer/WesternFlyerData/metdata/track/WFF_Pos_1min.sdb"
 
     # Check if CSV file path was provided as command line argument
